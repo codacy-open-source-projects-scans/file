@@ -1,6 +1,6 @@
 
 #------------------------------------------------------------------------------
-# $File: games,v 1.33 2024/10/06 17:05:45 christos Exp $
+# $File: games,v 1.35 2024/11/09 23:04:46 christos Exp $
 # games:  file(1) for games
 
 # Fabio Bonelli <fabiobonelli@libero.it>
@@ -647,3 +647,20 @@
 # Big-endian version (such as PS3)
 >8	ubelong	<0x100	Wwise Audio Package (big-endian)
 !:ext	pck
+
+# RPG Maker MV/MZ encrypted assets. Version was only ever known to be 00030100.
+0	string	RPGMV\0\0\0
+>12	string	\0\0\0\0
+>>8	belong	x		RPG Maker MV encrypted asset, version %08x
+!:ext	png_/ogg_/m4a_/rpgmvp/rpgmvo/rpgmvm
+
+# https://arthran2.itch.io/encrypterator-3000
+0	string	ART\0ENCRYPTER100FREE\0VERSION\0\0\0\0	RPG Maker MV encrypted asset, Encrypterator 3000 variant.
+!:ext	png_/ogg_/m4a_/rpgmvp/rpgmvo/rpgmvm
+
+
+# http://www.shikadi.net/moddingwiki/PCX_Library
+0	string/b	pcxLib\0
+>122	ubyte		0x01	pcxLib archive
+>>144	uleshort	0	\b, uncompressed
+>>144	uleshort	!0	\b, compressed

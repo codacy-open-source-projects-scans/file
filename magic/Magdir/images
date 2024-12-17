@@ -1,6 +1,6 @@
 
 #------------------------------------------------------------------------------
-# $File: images,v 1.258 2024/09/01 13:49:15 christos Exp $
+# $File: images,v 1.263 2024/11/10 20:44:30 christos Exp $
 # images:  file(1) magic for image formats (see also "iff", and "c-lang" for
 # XPM bitmaps)
 #
@@ -337,17 +337,21 @@
 # NewSubFileType
 >0	uleshort	0xfe
 >>12	use		tiff_entry
+# Width
 >0	uleshort	0x100
 >>4	ulelong		1
->>>12	use		tiff_entry
 >>>8	uleshort	x		\b, width=%d
+>>>12	use		tiff_entry
+# Height
 >0	uleshort	0x101
 >>4	ulelong		1
 >>>8	uleshort	x		\b, height=%d
 >>>12	use		tiff_entry
+# BPS
 >0	uleshort	0x102
 >>8	uleshort	x		\b, bps=%d
 >>12	use		tiff_entry
+# Compression
 >0	uleshort	0x103
 >>4	ulelong		1		\b, compression=
 >>>8	uleshort	1		\bnone
@@ -375,6 +379,7 @@
 >>>8	default		x
 >>>>8	uleshort	x		\b(unknown %#x)
 >>>12	use		tiff_entry
+# Photometric Interpretation
 >0	uleshort	0x106		\b, PhotometricInterpretation=
 >>8	clear		x
 >>8	uleshort	0		\bWhiteIsZero
@@ -470,10 +475,8 @@
 # GPS IFD
 >0	uleshort	0x8825		\b, GPS-Data
 >>12	use		tiff_entry
-
 #>0	uleshort	x		\b, unknown=%#x
 #>>12	use		tiff_entry
-
 0	string		MM\x00\x2b	Big TIFF image data, big-endian
 !:mime	image/tiff
 0	string		II\x2b\x00	Big TIFF image data, little-endian
@@ -3148,7 +3151,8 @@
 # FIXME: Handle DX10 and XBOX formats.
 >>0x54	string	DX10
 >>>0x80	use	ms-directdraw-dx10
->>0x54	string	!DX10			\b, compressed using %.4s
+>>0x54	string	!DX10
+>>>0x54	string	x			\b, compressed using %.4s
 >0x50	ulelong&0x2	0x2		\b, alpha only
 >0x50	ulelong&0x200	0x200		\b, YUV
 >0x50	ulelong&0x20000	0x20000		\b, luminance
@@ -3329,12 +3333,9 @@
 # Light Field Picture
 # Documentation: http://optics.miloush.net/lytro/TheFileFormat.aspx
 # Typical file extensions: .lfp .lfr .lfx
-
 0	ubelong	0x894C4650
->4	ubelong	0x0D0A1A0A
->12	ubelong	0x00000000	Lytro Light Field Picture
->8	ubelong	x		\b, version %d
-
+>4	ubelong	0x0D0A1A0A	Lytro Light Field Picture
+>>8	ubelong	x		\b, version %u
 
 # Type: ARRI Raw Image
 # Info: SMPTE RDD30:2014
@@ -4206,9 +4207,9 @@
 >>>13	ubyte		x	*bad colorspace %u*
 
 
-# Type: Godot 3, 4 texture (pixel format)
+# Type: Godot 3 texture (pixel format)
 # From: David Korth <gerbilsoft@gerbilsoft.com>
-0	name	godot-pixel-format
+0	name	godot-pixel-format-v3
 >0	ulelong&0xFFFFF	0	L8
 >0	ulelong&0xFFFFF	1	LA8
 >0	ulelong&0xFFFFF	2	R8
@@ -4246,7 +4247,54 @@
 >0	ulelong&0xFFFFF	34	ETC2_RGB8
 >0	ulelong&0xFFFFF	35	ETC2_RGBA8
 >0	ulelong&0xFFFFF	36	ETC2_RGB8A1
+# NOTE: This is a custom pixel format used by Sonic Colors Ultimate.
+# Godot 4 later added its own ASTC format values.
 >0	ulelong&0xFFFFF	37	ASTC_8x8
+
+# Type: Godot 4 texture (pixel format)
+# From: David Korth <gerbilsoft@gerbilsoft.com>
+# NOTE: This is a custom pixel format used by Sonic Colors Ultimate.
+# Godot 4 later added its own ASTC format values.
+0	name	godot-pixel-format-v4
+>0	ulelong&0xFFFFF	0	L8
+>0	ulelong&0xFFFFF	1	LA8
+>0	ulelong&0xFFFFF	2	R8
+>0	ulelong&0xFFFFF	3	RG8
+>0	ulelong&0xFFFFF	4	RGB8
+>0	ulelong&0xFFFFF	5	RGBA8
+>0	ulelong&0xFFFFF	6	RGBA4444
+>0	ulelong&0xFFFFF	7	RGB565
+>0	ulelong&0xFFFFF	8	RF
+>0	ulelong&0xFFFFF	9	RGF
+>0	ulelong&0xFFFFF	10	RGBF
+>0	ulelong&0xFFFFF	11	RGBAF
+>0	ulelong&0xFFFFF	12	RH
+>0	ulelong&0xFFFFF	13	RGH
+>0	ulelong&0xFFFFF	14	RGBH
+>0	ulelong&0xFFFFF	15	RGBAH
+>0	ulelong&0xFFFFF	16	RGBE9995
+>0	ulelong&0xFFFFF	17	DXT1
+>0	ulelong&0xFFFFF	18	DXT3
+>0	ulelong&0xFFFFF	19	DXT5
+>0	ulelong&0xFFFFF	20	RGTC_R
+>0	ulelong&0xFFFFF	21	RGTC_RG
+>0	ulelong&0xFFFFF	22	BPTC_RGBA
+>0	ulelong&0xFFFFF	23	BPTC_RGBF
+>0	ulelong&0xFFFFF	24	BPTC_RGBFU
+>0	ulelong&0xFFFFF	25	ETC
+>0	ulelong&0xFFFFF	36	ETC2_R11
+>0	ulelong&0xFFFFF	27	ETC2_R11S
+>0	ulelong&0xFFFFF	28	ETC2_RG11
+>0	ulelong&0xFFFFF	29	ETC2_RG11S
+>0	ulelong&0xFFFFF	30	ETC2_RGB8
+>0	ulelong&0xFFFFF	31	ETC2_RGBA8
+>0	ulelong&0xFFFFF	32	ETC2_RGB8A1
+>0	ulelong&0xFFFFF	33	ETC2_RA_AS_RG
+>0	ulelong&0xFFFFF	34	DXT5_RA_AS_RG
+>0	ulelong&0xFFFFF	35	ASTC_4x4
+>0	ulelong&0xFFFFF	36	ASTC_4x4_HDR
+>0	ulelong&0xFFFFF	37	ASTC_8x8
+>0	ulelong&0xFFFFF	38	ASTC_8x8_HDR
 
 # Type: Godot 3, 4 texture (rescale display, width)
 # From: David Korth <gerbilsoft@gerbilsoft.com>
@@ -4318,7 +4366,7 @@
 >16	ulelong&0x100000	0x100000	lossless encoding
 >16	ulelong&0x200000	0x200000	lossy encoding
 >16	ulelong&0x300000	0
->>16	use	godot-pixel-format
+>>16	use	godot-pixel-format-v3
 
 # Type: Godot 4 texture
 # From: David Korth <gerbilsoft@gerbilsoft.com>
@@ -4337,7 +4385,7 @@
 >12	use	godot-rescale-display-h
 >12	uleshort	x	\b,
 >0x2C	ulelong		>1	%u mipmaps,
->0x30	use	godot-pixel-format
+>0x30	use	godot-pixel-format-v4
 >0x24	ulelong		1	\b, embedded PNG image
 >0x24	ulelong		2	\b, embedded WebP image
 >0x24	ulelong		3	\b, Basis Universal
@@ -4511,3 +4559,26 @@
 >524		ubyte		!0x01		\b, at 524 %#2.2x opcode 
 # last opcode if not opEndPic (FFh)
 >-1		ubyte		!0xFF		\b, at the end %#2.2x opcode 
+
+# https://github.com/aseprite/aseprite/blob/main/docs/ase-file-specs.md
+20		ulelong		0
+>24		ulelong		0
+>>4		uleshort	0xA5E0	Aseprite asset file
+!:ext	aseprite
+>>>0		ulelong		x	\b, size %u
+>>>6		uleshort	x	\b, frames %u
+>>>8		uleshort	x	\b, size %ux
+>>>10		uleshort	x	\b%u
+>>>12		uleshort	32	\b, RGBA
+>>>12		uleshort	16	\b, Grayscale
+>>>12		uleshort	8	\b, Indexed
+>>>14		ulelong		x	\b, flags %#x
+#>>>18		uleshort	x	\b, speed %u
+>>>28		ubyte		x	\b, transparency index %u
+>>>32		uleshort	x	\b, number of colors %u
+>>>34		ubyte		>0	\b, pixel ratio %u:
+>>>>35		ubyte		x	\b%u
+>>>36		leshort		x	\b, grid position (%d, 
+>>>38		leshort		x	\b%d)
+>>>40		uleshort	x	\b, grid size %dx
+>>>42		uleshort	x	\b%d

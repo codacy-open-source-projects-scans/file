@@ -32,7 +32,7 @@
 #include "file.h"
 
 #ifndef	lint
-FILE_RCSID("@(#)$File: softmagic.c,v 1.346 2024/07/19 18:30:25 christos Exp $")
+FILE_RCSID("@(#)$File: softmagic.c,v 1.350 2024/11/27 15:37:00 christos Exp $")
 #endif	/* lint */
 
 #include "magic.h"
@@ -56,8 +56,8 @@ file_private int msetoffset(struct magic_set *, struct magic *, struct buffer *,
     const struct buffer *, size_t, unsigned int);
 file_private int magiccheck(struct magic_set *, struct magic *, file_regex_t **);
 file_private int mprint(struct magic_set *, struct magic *);
-file_private int moffset(struct magic_set *, struct magic *, const struct buffer *,
-    int32_t *);
+file_private int moffset(struct magic_set *, struct magic *,
+    const struct buffer *, size_t, int32_t *);
 file_private void mdebug(uint32_t, const char *, size_t);
 file_private int mcopy(struct magic_set *, union VALUETYPE *, int, int,
     const unsigned char *, uint32_t, size_t, struct magic *);
@@ -319,7 +319,7 @@ flush:
 			}
 		}
 
-		switch (moffset(ms, m, &bb, &ms->c.li[cont_level].off)) {
+		switch (moffset(ms, m, &bb, offset, &ms->c.li[cont_level].off)) {
 		case -1:
 		case 0:
 			goto flush;
@@ -449,7 +449,7 @@ flush:
 					*need_separator = 1;
 				}
 
-				switch (moffset(ms, m, &bb,
+				switch (moffset(ms, m, &bb, offset,
 				    &ms->c.li[cont_level].off)) {
 				case -1:
 				case 0:
@@ -833,7 +833,7 @@ mprint(struct magic_set *ms, struct magic *m)
 
 file_private int
 moffset(struct magic_set *ms, struct magic *m, const struct buffer *b,
-    int32_t *op)
+    size_t offset, int32_t *op)
 {
 	size_t nbytes = b->flen;
 	int32_t o;
@@ -930,17 +930,17 @@ moffset(struct magic_set *ms, struct magic *m, const struct buffer *b,
 
 	case FILE_REGEX:
 		if ((m->str_flags & REGEX_OFFSET_START) != 0)
-			o = CAST(int32_t, ms->search.offset);
+			o = CAST(int32_t, ms->search.offset - offset);
 		else
 			o = CAST(int32_t,
-			    (ms->search.offset + ms->search.rm_len));
+			    (ms->search.offset + ms->search.rm_len - offset));
 		break;
 
 	case FILE_SEARCH:
 		if ((m->str_flags & REGEX_OFFSET_START) != 0)
-			o = CAST(int32_t, ms->search.offset);
+			o = CAST(int32_t, ms->search.offset - offset);
 		else
-			o = CAST(int32_t, (ms->search.offset + m->vallen));
+			o = CAST(int32_t, (ms->search.offset + m->vallen - offset));
 		break;
 
 	case FILE_CLEAR:
@@ -1417,6 +1417,7 @@ mcopy(struct magic_set *ms, union VALUETYPE *p, int type, int indir,
 				}
 			}
 			*edst = '\0';
+			*dst = '\0';
 			return 0;
 		}
 		case FILE_STRING:	/* XXX - these two should not need */
@@ -1539,7 +1540,7 @@ msetoffset(struct magic_set *ms, struct magic *m, struct buffer *bb,
 		ms->eoffset = ms->offset = CAST(int32_t, b->elen - m->offset);
 	} else {
 		offset = m->offset;
-		if (cont_level == 0) {
+		if ((m->flag & OFFPOSITIVE) || cont_level == 0) {
 normal:
 			// XXX: Pass real fd, then who frees bb?
 			buffer_init(bb, -1, NULL, b->fbuf, b->flen);
@@ -1609,7 +1610,6 @@ mget(struct magic_set *ms, struct magic *m, const struct buffer *b,
 		    *name_count);
 		return -1;
 	}
-
 
 
 	if (mcopy(ms, p, m->type, m->flag & INDIR, s,

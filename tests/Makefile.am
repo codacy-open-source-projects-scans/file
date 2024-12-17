@@ -127,9 +127,12 @@ rpm-v3.0-bin-x86_64.result \
 rpm-v3.0-bin-x86_64.testfile \
 rpm-v3.0-src.result \
 rpm-v3.0-src.testfile \
+searchbug.magic \
+searchbug.result \
+searchbug.testfile \
 uf2.result \
 uf2.testfile \
-utf16xmlsvg.textfile \
+utf16xmlsvg.testfile \
 utf16xmlsvg.result \
 xclbin.result \
 xclbin.testfile \

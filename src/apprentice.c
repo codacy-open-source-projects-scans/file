@@ -32,7 +32,7 @@
 #include "file.h"
 
 #ifndef	lint
-FILE_RCSID("@(#)$File: apprentice.c,v 1.351 2024/09/01 13:50:01 christos Exp $")
+FILE_RCSID("@(#)$File: apprentice.c,v 1.357 2024/12/08 19:02:39 christos Exp $")
 #endif	/* lint */
 
 #include "magic.h"
@@ -107,10 +107,10 @@ struct magic_map {
 	uint32_t nmagic[MAGIC_SETS];
 };
 
-int file_formats[FILE_NAMES_SIZE];
-const size_t file_nformats = FILE_NAMES_SIZE;
-const char *file_names[FILE_NAMES_SIZE];
-const size_t file_nnames = FILE_NAMES_SIZE;
+file_private int file_formats[FILE_NAMES_SIZE];
+file_private const size_t file_nformats = FILE_NAMES_SIZE;
+file_protected const char *file_names[FILE_NAMES_SIZE];
+file_protected const size_t file_nnames = FILE_NAMES_SIZE;
 
 file_private int getvalue(struct magic_set *ms, struct magic *, const char **, int);
 file_private int hextoint(int);
@@ -540,6 +540,7 @@ file_ms_free(struct magic_set *ms)
 	free(ms->o.pbuf);
 	free(ms->o.buf);
 	free(ms->c.li);
+	free(ms->fnamebuf);
 #ifdef USE_C_LOCALE
 	freelocale(ms->c_lc_ctype);
 #endif
@@ -572,6 +573,7 @@ file_ms_alloc(int flags)
 	ms->error = -1;
 	for (i = 0; i < MAGIC_SETS; i++)
 		ms->mlist[i] = NULL;
+	ms->fnamebuf = NULL;
 	ms->file = "unknown";
 	ms->line = 0;
 	ms->magwarn = 0;
@@ -735,7 +737,7 @@ fail:
 file_protected int
 file_apprentice(struct magic_set *ms, const char *fn, int action)
 {
-	char *p, *mfn;
+	char *p;
 	int fileerr, errs = -1;
 	size_t i, j;
 
@@ -746,7 +748,8 @@ file_apprentice(struct magic_set *ms, const char *fn, int action)
 
 	init_file_tables();
 
-	if ((mfn = strdup(fn)) == NULL) {
+	free(ms->fnamebuf);
+	if ((ms->fnamebuf = strdup(fn)) == NULL) {
 		file_oomem(ms, strlen(fn));
 		return -1;
 	}
@@ -759,11 +762,10 @@ file_apprentice(struct magic_set *ms, const char *fn, int action)
 				mlist_free(ms->mlist[j]);
 				ms->mlist[j] = NULL;
 			}
-			free(mfn);
 			return -1;
 		}
 	}
-	fn = mfn;
+	fn = ms->fnamebuf;
 
 	while (fn) {
 		p = CCAST(char *, strchr(fn, PATHSEP));
@@ -775,8 +777,6 @@ file_apprentice(struct magic_set *ms, const char *fn, int action)
 		errs = MAX(errs, fileerr);
 		fn = p;
 	}
-
-	free(mfn);
 
 	if (errs == -1) {
 		for (i = 0; i < MAGIC_SETS; i++) {
@@ -1148,8 +1148,10 @@ apprentice_sort(const void *a, const void *b)
 				return 0;
 			file_magwarn1("Duplicate magic entry `%s'",
 			    ma->mp->desc);
+#ifndef COMPILE_ONLY
 			file_mdump(ma->mp);
 			file_mdump(mb->mp);
+#endif
 			return 0;
 		}
 		return x > 0 ? -1 : 1;
@@ -2127,9 +2129,9 @@ parse(struct magic_set *ms, struct magic_entry *me, const char *file,
 	}
 
 	/* get offset, then skip over it */
-	if (*l == '-') {
+	if (*l == '-' || *l == '+') {
 		++l;            /* step over */
-		m->flag |= OFFNEGATIVE;
+		m->flag |= l[-1] == '-' ? OFFNEGATIVE : OFFPOSITIVE;
 	}
 	m->offset = CAST(int32_t, strtol(l, &t, 0));
         if (l == t) {
@@ -2602,7 +2604,7 @@ parse_mime(struct magic_set *ms, struct magic_entry *me, const char *line,
 {
 	return parse_extra(ms, me, line, len,
 	    CAST(off_t, offsetof(struct magic, mimetype)),
-	    sizeof(me->mp[me->cont_count - 1].mimetype), "MIME", "+-/.$?:{}",
+	    sizeof(me->mp[me->cont_count - 1].mimetype), "MIME", "+-/.$?:{};=",
 	    1);
 }
 
