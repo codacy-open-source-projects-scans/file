@@ -27,15 +27,16 @@
 #include "file.h"
 
 #ifndef	lint
-FILE_RCSID("@(#)$File: seccomp.c,v 1.30 2024/11/28 14:04:24 christos Exp $")
+FILE_RCSID("@(#)$File: seccomp.c,v 1.34 2025/09/08 13:16:48 christos Exp $")
 #endif	/* lint */
 
 #if HAVE_LIBSECCOMP
 #include <seccomp.h> /* libseccomp */
 #include <sys/prctl.h> /* prctl */
-#include <sys/ioctl.h>
 #include <sys/socket.h>
-#include <termios.h>
+// See: https://sourceware.org/bugzilla/show_bug.cgi?id=32806
+#include <asm/termbits.h>
+#include <sys/ioctl.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -116,6 +117,10 @@ enable_sandbox(void)
 #ifdef TCGETS
 	// glibc may call ioctl TCGETS on stdout on physical terminal
 	ALLOW_IOCTL_RULE(TCGETS);
+#endif
+#ifdef TCGETS2
+	// glibc may call ioctl TCGETS2 on stdout on physical terminal
+	ALLOW_IOCTL_RULE(TCGETS2);
 #endif
 	ALLOW_RULE(lseek);
  	ALLOW_RULE(_llseek);
