@@ -32,7 +32,7 @@
 #include "file.h"
 
 #ifndef	lint
-FILE_RCSID("@(#)$File: apprentice.c,v 1.371 2026/03/20 13:55:27 christos Exp $")
+FILE_RCSID("@(#)$File: apprentice.c,v 1.373 2026/04/17 14:58:57 christos Exp $")
 #endif	/* lint */
 
 #include "magic.h"
@@ -1488,11 +1488,17 @@ file_private int
 coalesce_entries(struct magic_set *ms, struct magic_entry *me, uint32_t nme,
     struct magic **ma, uint32_t *nma)
 {
-	uint32_t i, mentrycount = 0;
+	uint32_t i;
+	size_t mentrycount = 0;
 	size_t slen;
 
 	for (i = 0; i < nme; i++)
 		mentrycount += me[i].cont_count;
+
+	if (mentrycount > UINT32_MAX / sizeof(**ma)) {
+		file_error(ms, 0, "too many magic entries (%zu)", mentrycount);
+		return -1;
+	}
 
 	if (mentrycount == 0) {
 		*ma = NULL;
@@ -3436,6 +3442,11 @@ check_buffer(struct magic_set *ms, struct magic_map *map, const char *dbname)
 			map->nmagic[i] = swap4(ptr[i + 2]);
 		else
 			map->nmagic[i] = ptr[i + 2];
+		if (map->nmagic[i] > entries) {
+			file_error(ms, 0, "nmagic[%u] too large in `%s'", i,
+			    dbname);
+			return -1;
+		}
 		if (i != MAGIC_SETS - 1)
 			map->magic[i + 1] = map->magic[i] + map->nmagic[i];
 		nentries += map->nmagic[i];
