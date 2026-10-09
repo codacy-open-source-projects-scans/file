@@ -32,7 +32,7 @@
 #include "file.h"
 
 #ifndef	lint
-FILE_RCSID("@(#)$File: apprentice.c,v 1.374 2026/04/19 19:56:49 christos Exp $")
+FILE_RCSID("@(#)$File: apprentice.c,v 1.377 2026/08/28 15:26:23 christos Exp $")
 #endif	/* lint */
 
 #include "magic.h"
@@ -49,7 +49,9 @@ FILE_RCSID("@(#)$File: apprentice.c,v 1.374 2026/04/19 19:56:49 christos Exp $")
 #ifdef QUICK
 #include <sys/mman.h>
 #endif
+#ifdef HAVE_DIRENT_H
 #include <dirent.h>
+#endif
 #include <limits.h>
 
 
@@ -112,7 +114,7 @@ file_private int hextoint(int);
 file_private const char *getstr(struct magic_set *, struct magic *, const char *,
     int);
 file_private int parse(struct magic_set *, struct magic_entry *, const char *,
-    const char *, size_t, int);
+    const char *, size_t, size_t, int);
 file_private void eatsize(const char **);
 file_private int apprentice_1(struct magic_set *, const char *, int);
 file_private ssize_t apprentice_magic_strength_1(const struct magic *);
@@ -1390,7 +1392,7 @@ load_1(struct magic_set *ms, int action, const char *fn, int *errs,
 			/*FALLTHROUGH*/
 		default:
 		again:
-			switch (parse(ms, &me, fn, line, lineno, action)) {
+			switch (parse(ms, &me, fn, line, llen, lineno, action)) {
 			case 0:
 				continue;
 			case 1:
@@ -1532,8 +1534,10 @@ apprentice_load(struct magic_set *ms, const char *fn, int action)
 	struct stat st;
 	struct magic_map *map;
 	struct magic_entry_set mset[MAGIC_SETS];
+#ifdef HAVE_DIRENT_H
 	DIR *dir;
 	struct dirent *d;
+#endif
 
 	memset(mset, 0, sizeof(mset));
 	ms->flags |= MAGIC_CHECK;	/* Enable checks for parsed files */
@@ -1551,6 +1555,7 @@ apprentice_load(struct magic_set *ms, const char *fn, int action)
 		(void)fprintf(stderr, "%s\n", usg_hdr);
 
 	/* load directory or file */
+#ifdef HAVE_DIRENT_H
 	if (stat(fn, &st) == 0 && S_ISDIR(st.st_mode)) {
 		dir = opendir(fn);
 		if (!dir) {
@@ -1599,6 +1604,7 @@ apprentice_load(struct magic_set *ms, const char *fn, int action)
 			filearr = NULL;
 		}
 	} else
+#endif
 		load_1(ms, action, fn, &errs, mset);
 	if (errs)
 		goto out;
@@ -2038,14 +2044,14 @@ out:
  */
 file_private int
 parse(struct magic_set *ms, struct magic_entry *me, const char *file,
-    const char *line, size_t lineno, int action)
+    const char *line, size_t llen, size_t lineno, int action)
 {
 #ifdef ENABLE_CONDITIONALS
 	static uint32_t last_cont_level = 0;
 #endif
 	size_t i;
 	struct magic *m;
-	const char *l = line;
+	const char *l = line, *el = line + llen;
 	char *t;
 	int op;
 	uint32_t cont_level;
@@ -2057,6 +2063,8 @@ parse(struct magic_set *ms, struct magic_entry *me, const char *file,
 	 * Parse the offset.
 	 */
 	while (*l == '>') {
+		if (l >= el)
+			return -1;
 		++l;		/* step over */
 		cont_level++;
 	}
@@ -3173,10 +3181,14 @@ getstr(struct magic_set *ms, struct magic *m, const char *s, int warn)
 	--s;
 out:
 	*p = '\0';
+	if (CAST(size_t, (p - origp)) > sizeof(m->value.s))
+		return NULL;
 	m->vallen = CAST(unsigned char, (p - origp));
 	if (m->type == FILE_PSTRING) {
 		size_t l =  file_pstring_length_size(ms, m);
 		if (l == FILE_BADSIZE)
+			return NULL;
+		if (m->vallen + l > sizeof(m->value.s))
 			return NULL;
 		m->vallen += CAST(unsigned char, l);
 	}

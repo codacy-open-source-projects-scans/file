@@ -35,7 +35,7 @@
 #include "file.h"
 
 #ifndef lint
-FILE_RCSID("@(#)$File: cdf.c,v 1.126 2026/02/09 17:10:42 christos Exp $")
+FILE_RCSID("@(#)$File: cdf.c,v 1.130 2026/08/28 15:45:34 christos Exp $")
 #endif
 
 #include <assert.h>
@@ -491,6 +491,11 @@ cdf_read_sat(const cdf_info_t *info, cdf_header_t *h, cdf_sat_t *sat)
 	}
 
 	sat->sat_len = h->h_num_sectors_in_master_sat * nsatpersec + i;
+#define CDF_SAT_LIMIT	(16 * 1024 * 1024)
+	if (ss != 0 && sat->sat_len > CDF_SAT_LIMIT / ss) {
+		errno = EFTYPE;
+		return -1;
+	}
 	DPRINTF(("sat_len = %" SIZE_T_FORMAT "u ss = %" SIZE_T_FORMAT "u\n",
 	    sat->sat_len, ss));
 	if ((sat->sat_tab = CAST(cdf_secid_t *, CDF_CALLOC(sat->sat_len, ss)))
@@ -559,8 +564,12 @@ size_t
 cdf_count_chain(const cdf_sat_t *sat, cdf_secid_t sid, size_t size)
 {
 	size_t i, j;
-	cdf_secid_t maxsector = CAST(cdf_secid_t, (sat->sat_len * size)
-	    / sizeof(maxsector));
+	cdf_secid_t maxsector;
+
+	if (size == 0 || sat->sat_len > SIZE_MAX / size)
+		goto out;
+	maxsector = CAST(cdf_secid_t, (sat->sat_len * size) /
+	    sizeof(maxsector));
 
 	DPRINTF(("Chain:"));
 	if (sid == CDF_SECID_END_OF_CHAIN) {
@@ -573,6 +582,10 @@ cdf_count_chain(const cdf_sat_t *sat, cdf_secid_t sid, size_t size)
 		DPRINTF((" %d", sid));
 		if (j >= CDF_LOOP_LIMIT) {
 			DPRINTF(("Counting chain loop limit"));
+			goto out;
+		}
+		if (i >= CDF_MEMORY_LIMIT / size) {
+			DPRINTF(("Counting chain size limit"));
 			goto out;
 		}
 		if (sid >= maxsector) {
@@ -711,6 +724,11 @@ cdf_read_dir(const cdf_info_t *info, const cdf_header_t *h,
 		return -1;
 
 	nd = ss / CDF_DIRECTORY_SIZE;
+	if (nd != 0 && ns > CDF_MEMORY_LIMIT / nd / sizeof(dir->dir_tab[0])) {
+		DPRINTF(("Directory size limit"));
+		errno = EFTYPE;
+		return -1;
+	}
 
 	dir->dir_len = ns * nd;
 	dir->dir_tab = CAST(cdf_directory_t *,
@@ -1196,6 +1214,8 @@ cdf_unpack_catalog(const cdf_header_t *h, const cdf_stream_t *sst,
 	const uint16_t *np;
 
 	for (nr = 0;; nr++) {
+		if (b + sizeof(reclen) > eb)
+			break;
 		memcpy(&reclen, b, sizeof(reclen));
 		reclen = CDF_TOLE2(reclen);
 		if (reclen == 0)

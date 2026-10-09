@@ -1,3 +1,28 @@
+2026-08-28  11:33  Christos Zoulas <christos@zoulas.com>
+
+	* teach file about snapshots (Taylor Campbell)
+	* Add amiga port (Cameron Armstrong)
+
+2026-08-28   9:34  Christos Zoulas <christos@zoulas.com>
+
+	* move substitute implementation into missing
+
+2026-06-28  19:25  Christos Zoulas <christos@zoulas.com>
+	
+	* add support for st_flags printing
+
+2026-05-08  16:08  Christos Zoulas <christos@zoulas.com>
+	
+	* add preliminary lz4 support
+
+2026-05-07  11:32  Christos Zoulas <christos@zoulas.com>
+
+	* release 5.48
+
+2026-05-11  15:55 Christos Zoulas <christos@zoulas.com>
+
+	* add landlock support (valoq)
+
 2026-04-19  15:55 Christos Zoulas <christos@zoulas.com>
 
 	* add BE/LE GUID

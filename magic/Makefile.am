@@ -1,5 +1,5 @@
 #
-# $File: Makefile.am,v 1.203 2026/04/16 15:13:19 christos Exp $
+# $File: Makefile.am,v 1.208 2026/07/31 16:46:15 christos Exp $
 #
 MAGIC_FRAGMENT_BASE = Magdir
 MAGIC_DIR = $(top_srcdir)/magic
@@ -36,6 +36,7 @@ $(MAGIC_FRAGMENT_DIR)/arm \
 $(MAGIC_FRAGMENT_DIR)/asf \
 $(MAGIC_FRAGMENT_DIR)/assembler \
 $(MAGIC_FRAGMENT_DIR)/asterix \
+$(MAGIC_FRAGMENT_DIR)/atari \
 $(MAGIC_FRAGMENT_DIR)/att3b \
 $(MAGIC_FRAGMENT_DIR)/audio \
 $(MAGIC_FRAGMENT_DIR)/avm \
@@ -220,9 +221,11 @@ $(MAGIC_FRAGMENT_DIR)/netbsd \
 $(MAGIC_FRAGMENT_DIR)/netscape \
 $(MAGIC_FRAGMENT_DIR)/netware \
 $(MAGIC_FRAGMENT_DIR)/news \
+$(MAGIC_FRAGMENT_DIR)/nfdump \
 $(MAGIC_FRAGMENT_DIR)/nifty \
 $(MAGIC_FRAGMENT_DIR)/nim-lang \
 $(MAGIC_FRAGMENT_DIR)/nitpicker \
+$(MAGIC_FRAGMENT_DIR)/nix \
 $(MAGIC_FRAGMENT_DIR)/numpy \
 $(MAGIC_FRAGMENT_DIR)/oasis \
 $(MAGIC_FRAGMENT_DIR)/ocaml \
@@ -240,6 +243,7 @@ $(MAGIC_FRAGMENT_DIR)/pack \
 $(MAGIC_FRAGMENT_DIR)/palm \
 $(MAGIC_FRAGMENT_DIR)/parix \
 $(MAGIC_FRAGMENT_DIR)/parrot \
+$(MAGIC_FRAGMENT_DIR)/partclone \
 $(MAGIC_FRAGMENT_DIR)/pascal \
 $(MAGIC_FRAGMENT_DIR)/pbf \
 $(MAGIC_FRAGMENT_DIR)/pbm \
@@ -312,6 +316,7 @@ $(MAGIC_FRAGMENT_DIR)/syd \
 $(MAGIC_FRAGMENT_DIR)/sylk \
 $(MAGIC_FRAGMENT_DIR)/symbos \
 $(MAGIC_FRAGMENT_DIR)/sysex \
+$(MAGIC_FRAGMENT_DIR)/sysstat \
 $(MAGIC_FRAGMENT_DIR)/tapebackup \
 $(MAGIC_FRAGMENT_DIR)/tcl \
 $(MAGIC_FRAGMENT_DIR)/teapot \

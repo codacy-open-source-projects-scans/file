@@ -27,7 +27,7 @@
 #include "file.h"
 
 #ifndef	lint
-FILE_RCSID("@(#)$File: funcs.c,v 1.150 2026/04/19 19:56:49 christos Exp $")
+FILE_RCSID("@(#)$File: funcs.c,v 1.154 2026/08/28 15:26:23 christos Exp $")
 #endif	/* lint */
 
 #include "magic.h"
@@ -51,6 +51,18 @@ FILE_RCSID("@(#)$File: funcs.c,v 1.150 2026/04/19 19:56:49 christos Exp $")
 #ifndef SIZE_MAX
 #define SIZE_MAX	((size_t)~0)
 #endif
+
+file_protected int
+file_bigendian(void)
+{
+	union {
+		unsigned short x;
+		unsigned char s[sizeof(unsigned short)];
+	} u;
+
+	u.x = 1;
+	return u.s[0] != 1;
+}
 
 file_protected char *
 file_copystr(char *buf, size_t blen, size_t width, const char *str)
@@ -78,8 +90,11 @@ file_checkfield(char *msg, size_t mlen, const char *what, const char **pp)
 	const char *p = *pp;
 	int fw = 0;
 
-	while (*p && isdigit((unsigned char)*p))
+	while (*p && isdigit((unsigned char)*p)) {
 		fw = fw * 10 + (*p++ - '0');
+		if (fw > 1024)
+			break;
+	}
 
 	*pp = p;
 
@@ -654,24 +669,23 @@ file_protected int
 file_replace(struct magic_set *ms, const char *pat, const char *rep)
 {
 	file_regex_t rx;
-	int rc, rv = -1;
+	int nm;
+	regmatch_t rm;
 
-	rc = file_regcomp(ms, &rx, pat, REG_EXTENDED);
-	if (rc == 0) {
-		regmatch_t rm;
-		int nm = 0;
-		while (file_regexec(ms, &rx, ms->o.buf, 1, &rm, 0) == 0) {
-			ms->o.buf[rm.rm_so] = '\0';
-			if (file_printf(ms, "%s%s", rep,
-			    rm.rm_eo != 0 ? ms->o.buf + rm.rm_eo : "") == -1)
-				goto out;
-			nm++;
-		}
-		rv = nm;
+	nm = file_regcomp(ms, &rx, pat, REG_EXTENDED);
+	if (nm != 0)
+		return -1;
+
+	while (file_regexec(ms, &rx, ms->o.buf, 1, &rm, 0) == 0) {
+		ms->o.buf[rm.rm_so] = '\0';
+		if (file_printf(ms, "%s%s", rep,
+		    rm.rm_eo != 0 ? ms->o.buf + rm.rm_eo : "") == -1)
+			goto out;
+		nm++;
 	}
 out:
 	file_regfree(&rx);
-	return rv;
+	return nm;
 }
 
 file_private int
@@ -932,6 +946,13 @@ file_parse_guid(const char *s, uint64_t *guid)
 	    !getxvalue(&g->data4[6], s + 8, 2) ||
 	    !getxvalue(&g->data4[7], s + 10, 2))
 		return -1;
+
+	if (file_bigendian()) {
+		g->data1 = file_swap4(g->data1);
+		g->data2 = file_swap2(g->data2);
+		g->data3 = file_swap2(g->data3);
+
+	}
 	return 0;
 }
 
@@ -980,6 +1001,14 @@ file_pipe_closexec(int *fds)
 	return 0;
 #elif defined(HAVE_PIPE2)
 	return pipe2(fds, O_CLOEXEC);
+#elif !defined(HAVE_PIPE)
+	/*
+	 * No pipe(2) at all -- e.g. AmigaOS clib2. Only the external
+	 * decompressor path needs pipes, so report failure and let the
+	 * caller fall back rather than failing to link.
+	 */
+	(void)fds;
+	return -1;
 #else
 	if (pipe(fds) == -1)
 		return -1;

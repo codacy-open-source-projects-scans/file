@@ -34,8 +34,20 @@
  */
 #include "file.h"
 
+/*
+ * Only the external decompressor path uses fork(). AmigaOS has no fork()
+ * at all, so the call is stubbed to fail at run time rather than failing
+ * to build; MorphOS provides the symbol but no prototype, so declare it.
+ * config.h already maps vfork to fork where needed.
+ */
+#ifndef HAVE_FORK
+#define fork() (-1)
+#elif !defined(HAVE_DECL_FORK) || !HAVE_DECL_FORK
+extern pid_t fork(void);
+#endif
+
 #ifndef lint
-FILE_RCSID("@(#)$File: compress.c,v 1.159 2026/04/13 16:35:09 christos Exp $")
+FILE_RCSID("@(#)$File: compress.c,v 1.167 2026/08/28 15:26:23 christos Exp $")
 #endif
 
 #include "magic.h"
@@ -92,10 +104,16 @@ typedef void (*sig_t)(int);
 #endif
 
 #ifdef notyet
+/* uses fmemopen and friends, not good enough or we need more autoconf glue */
 #if defined(HAVE_LRZIP_H) && defined(LRZIPLIBSUPPORT)
 #define BUILTIN_LRZIP
 #include <Lrzip.h>
 #endif
+#endif
+
+#if defined(HAVE_LZ4FRAME_H) && defined(LZ4LIBSUPPORT)
+#define BUILTIN_LZ4LIB
+#include <lz4frame.h>
 #endif
 
 #ifdef DEBUG
@@ -125,12 +143,11 @@ static const char *zlib_args[] = { "python", "-c", zlibcode, NULL };
 static int
 zlibcmp(const unsigned char *buf)
 {
-	unsigned short x = 1;
-	unsigned char *s = CAST(unsigned char *, CAST(void *, &x));
+	unsigned short x;
 
 	if ((buf[0] & 0xf) != 8 || (buf[0] & 0x80) != 0)
 		return 0;
-	if (s[0] != 1)	/* endianness test */
+	if (file_bigendian())	/* endianness test */
 		x = buf[0] | (buf[1] << 8);
 	else
 		x = buf[1] | (buf[0] << 8);
@@ -195,6 +212,7 @@ file_private const struct {
 #define METH_XZ		9
 #define METH_LZIP	8
 #define METH_LRZIP	10
+#define	METH_LZ4	11
 #define METH_ZSTD	12
 #define METH_LZMA	13
 #define METH_ZLIB	14
@@ -256,6 +274,10 @@ file_private int uncompresslzlib(const unsigned char *, unsigned char **, size_t
 file_private int uncompresslrzip(const unsigned char *, unsigned char **, size_t,
     size_t *, int);
 #endif
+#ifdef BUILTIN_LZ4LIB
+file_private int uncompresslz4(const unsigned char *, unsigned char **, size_t,
+    size_t *, int);
+#endif
 
 
 static int makeerror(unsigned char **, size_t *, const char *, ...)
@@ -292,7 +314,9 @@ file_zmagic(struct magic_set *ms, const struct buffer *b, const char *name)
 	const unsigned char *buf = CAST(const unsigned char *, b->fbuf);
 	size_t nbytes = b->flen;
 	int sa_saved = 0;
+#ifdef HAVE_SIGACTION
 	struct sigaction sig_act;
+#endif
 
 	if ((ms->flags & MAGIC_COMPRESS) == 0)
 		return 0;
@@ -311,6 +335,7 @@ file_zmagic(struct magic_set *ms, const struct buffer *b, const char *name)
 		if (!zm)
 			continue;
 
+#ifdef HAVE_SIGACTION
 		/* Prevent SIGPIPE death if child dies unexpectedly */
 		if (!sa_saved) {
 			//We can use sig_act for both new and old, but
@@ -319,6 +344,7 @@ file_zmagic(struct magic_set *ms, const struct buffer *b, const char *name)
 			new_act.sa_handler = SIG_IGN;
 			sa_saved = sigaction(SIGPIPE, &new_act, &sig_act) != -1;
 		}
+#endif
 
 		nsz = nbytes;
 		free(newbuf);
@@ -380,8 +406,10 @@ file_zmagic(struct magic_set *ms, const struct buffer *b, const char *name)
 out:
 	DPRINTF("rv = %d\n", rv);
 
+#ifdef HAVE_SIGACTION
 	if (sa_saved && sig_act.sa_handler != SIG_IGN)
 		(void)sigaction(SIGPIPE, &sig_act, NULL);
+#endif
 
 	free(newbuf);
 	ms->flags |= MAGIC_COMPRESS;
@@ -421,7 +449,7 @@ file_protected ssize_t
 sread(int fd, void *buf, size_t n, int canbepipe __attribute__((__unused__)))
 {
 	ssize_t rv;
-#if defined(FIONREAD) && !defined(__MINGW32__)
+#if defined(FIONREAD) && defined(HAVE_IOCTL) && !defined(__MINGW32__)
 	int t = 0;
 #endif
 	size_t rn = n;
@@ -429,9 +457,9 @@ sread(int fd, void *buf, size_t n, int canbepipe __attribute__((__unused__)))
 	if (fd == STDIN_FILENO)
 		goto nocheck;
 
-#if defined(FIONREAD) && !defined(__MINGW32__)
+#if defined(FIONREAD) && defined(HAVE_IOCTL) && !defined(__MINGW32__)
 	if (canbepipe && (ioctl(fd, FIONREAD, &t) == -1 || t == 0)) {
-#ifdef FD_ZERO
+#if defined(FD_ZERO) && defined(HAVE_SELECT)
 		ssize_t cnt;
 		for (cnt = 0;; cnt++) {
 			fd_set check;
@@ -859,7 +887,7 @@ uncompresslrzip(const unsigned char *old, unsigned char **newch,
 		goto out0;
 	}
 	lrzip_config_env(lr);
-	in = fmemopen(RCAST(void *, old), bytes_max, "r");
+	in = fmemopen(RCAST(void *, old), *n, "r");
 	if (in == NULL) {
 		res = makeerror(newch, n, "unable to construct input file");
 		goto out1;
@@ -868,6 +896,7 @@ uncompresslrzip(const unsigned char *old, unsigned char **newch,
 		res = makeerror(newch, n, "unable to add input file");
 		goto out2;
 	}
+	free(*newch);
 	*newch = calloc(*n = 2 * bytes_max, 1);
 	if (*newch == NULL) {
 		res = makeerror(newch, n, "unable to allocate output buffer");
@@ -893,6 +922,39 @@ out2:
 out1:
 	lrzip_free(lr);
 out0:
+	return res;
+}
+#endif
+
+#ifdef BUILTIN_LZ4LIB
+file_private int
+uncompresslz4(const unsigned char *old, unsigned char **newch,
+    size_t bytes_max, size_t *n, int extra __attribute__((__unused__)))
+{
+	LZ4F_decompressionContext_t dctx;
+	size_t src_read = *n;
+	size_t dst_written = bytes_max;
+	int res;
+	
+	LZ4F_errorCode_t ret = LZ4F_createDecompressionContext(&dctx,
+	    LZ4F_VERSION);
+	if (LZ4F_isError(ret)) {
+		res = makeerror(newch, n, "unable to create an lz4 decoder");
+		goto out;
+	}
+
+	/* Decode the lz4 frame into our destination buffer */
+	ret = LZ4F_decompress(dctx, *newch, &dst_written, old, &src_read, NULL);
+	
+
+	if (LZ4F_isError(ret) || dst_written == 0) {
+		res = makeerror(newch, n, "unable to decompress file");
+	} else {
+		*n = dst_written;
+		res = OKDATA;
+	}
+out:
+	LZ4F_freeDecompressionContext(dctx);
 	return res;
 }
 #endif
@@ -1114,6 +1176,10 @@ getdecompressor(size_t method))(const unsigned char *, unsigned char **, size_t,
 #ifdef BUILTIN_LRZIP
 	case METH_LRZIP:
 		return uncompresslrzip;
+#endif
+#ifdef BUILTIN_LZ4LIB
+	case METH_LZ4:
+		return uncompresslz4;
 #endif
 	default:
 		return NULL;

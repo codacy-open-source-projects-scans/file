@@ -33,7 +33,7 @@
 #include "file.h"
 
 #ifndef	lint
-FILE_RCSID("@(#)$File: magic.c,v 1.126 2026/04/15 16:53:40 christos Exp $")
+FILE_RCSID("@(#)$File: magic.c,v 1.129 2026/08/28 15:26:23 christos Exp $")
 #endif	/* lint */
 
 #include "magic.h"
@@ -62,7 +62,7 @@ FILE_RCSID("@(#)$File: magic.c,v 1.126 2026/04/15 16:53:40 christos Exp $")
 
 #ifndef PIPE_BUF
 /* Get the PIPE_BUF from pathconf */
-#ifdef _PC_PIPE_BUF
+#if defined(_PC_PIPE_BUF) && defined(HAVE_PATHCONF)
 #define PIPE_BUF pathconf(".", _PC_PIPE_BUF)
 #else
 #define PIPE_BUF 512
@@ -385,7 +385,7 @@ close_and_restore(const struct magic_set *ms, const char *name, int fd,
 	utsbuf[1].tv_sec = sb->st_mtime;
 
 	(void) utimes(name, utsbuf); /* don't care if loses */
-#elif defined(HAVE_UTIME_H) || defined(HAVE_SYS_UTIME_H)
+#elif defined(HAVE_UTIME) && (defined(HAVE_UTIME_H) || defined(HAVE_SYS_UTIME_H))
 	struct utimbuf  utbuf;
 
 	(void)memset(&utbuf, 0, sizeof(utbuf));
@@ -610,11 +610,35 @@ magic_version(void)
 	return MAGIC_VERSION;
 }
 
+file_public ssize_t
+magic_getmaxparam(int param)
+{
+	switch (param) {
+	case MAGIC_PARAM_INDIR_MAX:
+	case MAGIC_PARAM_NAME_MAX:
+	case MAGIC_PARAM_ELF_PHNUM_MAX:
+	case MAGIC_PARAM_ELF_SHNUM_MAX:
+	case MAGIC_PARAM_ELF_SHSIZE_MAX:
+	case MAGIC_PARAM_ELF_NOTES_MAX:
+	case MAGIC_PARAM_REGEX_MAX:
+		return 0xffff;
+	case MAGIC_PARAM_BYTES_MAX:
+	case MAGIC_PARAM_ENCODING_MAX:
+	case MAGIC_PARAM_MAGWARN_MAX:
+		return 0x7fffffff;
+	default:
+		errno = EINVAL;
+		return -1;
+	}
+}
+
 file_public int
 magic_setparam(struct magic_set *ms, int param, const void *val)
 {
-	if (ms == NULL)
+	if (ms == NULL || val == NULL) {
+		errno = EFAULT;
 		return -1;
+	}
 	const size_t v = *CAST(const size_t *, val);
 	switch (param) {
 	case MAGIC_PARAM_INDIR_MAX:
@@ -656,8 +680,10 @@ magic_setparam(struct magic_set *ms, int param, const void *val)
 file_public int
 magic_getparam(struct magic_set *ms, int param, void *val)
 {
-	if (ms == NULL)
+	if (ms == NULL || val == NULL) {
+		errno = EFAULT;
 		return -1;
+	}
 	switch (param) {
 	case MAGIC_PARAM_INDIR_MAX:
 		*CAST(size_t *, val) = ms->indir_max;
